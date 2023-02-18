@@ -14,6 +14,16 @@ import (
 var DB *gorm.DB
 
 func GetAnnouncement(c *gin.Context) {
+	var announcement model.Announcement
+	if err := DB.First(&announcement, c.Param("id")).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	} else {
+		c.JSON(200, announcement)
+	}
+}
+
+func GetAnnouncements(c *gin.Context) {
 	var announcements []model.Announcement
 	if err := DB.Find(&announcements).Error; err != nil {
 		c.AbortWithStatus(404)
@@ -24,6 +34,16 @@ func GetAnnouncement(c *gin.Context) {
 }
 
 func GetPA(c *gin.Context) {
+	var pa model.PA
+	if err := DB.First(&pa, c.Param("id")).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	} else {
+		c.JSON(200, pa)
+	}
+}
+
+func GetPAs(c *gin.Context) {
 	var pas []model.PA
 	if err := DB.Find(&pas).Error; err != nil {
 		c.AbortWithStatus(404)
@@ -34,6 +54,16 @@ func GetPA(c *gin.Context) {
 }
 
 func GetDetail(c *gin.Context) {
+	var detail model.Detail
+	if err := DB.First(&detail, c.Param("id")).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	} else {
+		c.JSON(200, detail)
+	}
+}
+
+func GetDetails(c *gin.Context) {
 	var details []model.Detail
 	if err := DB.Find(&details).Error; err != nil {
 		c.AbortWithStatus(404)
@@ -43,7 +73,7 @@ func GetDetail(c *gin.Context) {
 	}
 }
 
-func GetProduct(c *gin.Context) {
+func GetProducts(c *gin.Context) {
 	var products []model.Product
 	if err := DB.Find(&products).Error; err != nil {
 		c.AbortWithStatus(404)
@@ -53,7 +83,7 @@ func GetProduct(c *gin.Context) {
 	}
 }
 
-func GetSolution(c *gin.Context) {
+func GetSolutions(c *gin.Context) {
 	var solutions []model.Solution
 	if err := DB.Find(&solutions).Error; err != nil {
 		c.AbortWithStatus(404)
@@ -63,7 +93,7 @@ func GetSolution(c *gin.Context) {
 	}
 }
 
-func GetVertical(c *gin.Context) {
+func GetVerticals(c *gin.Context) {
 	var verticals []model.Vertical
 	if err := DB.Find(&verticals).Error; err != nil {
 		c.AbortWithStatus(404)
@@ -73,7 +103,7 @@ func GetVertical(c *gin.Context) {
 	}
 }
 
-func GetType(c *gin.Context) {
+func GetTypes(c *gin.Context) {
 	var types []model.Type
 	if err := DB.Find(&types).Error; err != nil {
 		c.AbortWithStatus(404)
@@ -93,13 +123,22 @@ func main() {
 
 	api := r.Group("/api/v1")
 
-	api.GET("/announcement", GetAnnouncement)
-	api.GET("/pa", GetPA)
-	api.GET("/detail", GetDetail)
-	api.GET("/product", GetProduct)
-	api.GET("/solution", GetSolution)
-	api.GET("/vertical", GetVertical)
-	api.GET("/type", GetType)
+	api.GET("/announcement", GetAnnouncements)
+	api.GET("/announcement/:id", GetAnnouncement)
+
+	api.GET("/pa", GetPAs)
+	api.GET("/pa/:id", GetPA)
+
+	api.GET("/detail", GetDetails)
+	api.GET("/detail/:id", GetDetail)
+
+	api.GET("/product", GetProducts)
+
+	api.GET("/solution", GetSolutions)
+
+	api.GET("/vertical", GetVerticals)
+
+	api.GET("/type", GetTypes)
 
 	auth := api.Group("/auth")
 	auth.POST("/register", middleware.RegisterHandler)

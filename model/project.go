@@ -54,14 +54,27 @@ type Type struct {
 }
 
 type Category struct {
-	CategoryId   *int   `gorm:"primary_key" json:"categoryId"`
-	CategoryName string `json:"categoryName"`
-	Tags         []Tag  `json:"tags"`
+	Id   *int   `gorm:"primary_key" json:"id"`
+	Name string `json:"name"`
+	Tags []Tag  `json:"tags"`
+}
+
+type Project struct {
+	Id          *int   `gorm:"primary_key" json:"id"`
+	Email       string `json:"email"`
+	Title       string `json:"title"`
+	Link        string `json:"link"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+	Date        string `json:"date"`
+	IsLive      bool   `json:"is_live"`
+	Tags        []Tag  `gorm:"many2many:project_tags" json:"tags"`
 }
 
 type Tag struct {
-	TagId        int    `gorm:"primary_key" json:"tagId"`
-	TagName      string `json:"tagName"`
-	TagNameShort string `json:"tagNameShort"`
-	CategoryId   *int   `gorm:"foreignKey:CategoryId" json:"categoryId"`
+	Id         int       `gorm:"primary_key" json:"id"`
+	Name       string    `json:"name"`
+	NameShort  string    `json:"nameShort"`
+	CategoryId *int      `json:"categoryId"`
+	Projects   []Project `gorm:"many2many:project_tags" json:"projects"`
 }
