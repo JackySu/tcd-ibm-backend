@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/jinzhu/gorm"
+)
 
 /*
 Dto stands for Data Transfer Object
@@ -69,69 +73,63 @@ type Category struct {
 	Tags []Tag  `json:"tags"`
 }
 
-type CategoryDto struct {
-	Id   int      `json:"id"`
-	Name string   `json:"name"`
-	Tags []TagDto `json:"tags"`
-}
-
-func (c *Category) ToDto() CategoryDto {
-	return CategoryDto{
-		Id:   c.Id,
-		Name: c.Name,
-		Tags: ToTagDto(c.Tags),
-	}
-}
-
-func ToCategoryDto(categories []Category) []CategoryDto {
-	var categoryDtos []CategoryDto
-	for _, category := range categories {
-		categoryDtos = append(categoryDtos, category.ToDto())
-	}
-	return categoryDtos
+type ProjectBase struct {
+	Email       string `json:"email"` // Email of the user that created the project
+	Title       string `json:"title"`
+	Link        string `json:"link"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+	Tags        []int  `json:"tags"`
 }
 
 type Project struct {
-	Id          int       `gorm:"primary_key" json:"id"`
-	Email       string    `json:"email"`
-	Title       string    `json:"title"`
-	Link        string    `json:"link"`
-	Description string    `json:"description"`
-	Content     string    `json:"content"`
-	Date        time.Time `json:"date"`
-	IsLive      bool      `json:"is_live"`
-	Tags        []Tag     `gorm:"many2many:project_tags" json:"tags"`
+	gorm.Model
+	Email       string `json:"email"`
+	Title       string `json:"title"`
+	Link        string `json:"link"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+	IsLive      bool   `json:"is_live"`
+	User        User   `json:"user"` // User that created the project
+	Tags        []Tag  `gorm:"many2many:project_tags" json:"tags"`
 }
 
 type ProjectDto struct {
-	Id          int       `json:"id"`
+	ID          int       `json:"id"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	DeletedAt   time.Time `json:"deletedAt"`
 	Email       string    `json:"email"`
 	Title       string    `json:"title"`
 	Link        string    `json:"link"`
 	Description string    `json:"description"`
 	Content     string    `json:"content"`
-	Date        time.Time `json:"date"`
 	IsLive      bool      `json:"is_live"`
+	User        UserDto   `json:"user"`
 	Tags        []TagDto  `json:"tags"`
 }
 
-func (p *Project) ToDto() ProjectDto {
+func ToProjectDto(project Project) ProjectDto {
 	return ProjectDto{
-		Id:          p.Id,
-		Email:       p.Email,
-		Title:       p.Title,
-		Link:        p.Link,
-		Description: p.Description,
-		Date:        p.Date,
-		IsLive:      p.IsLive,
-		Tags:        ToTagDto(p.Tags),
+		ID:          int(project.ID),
+		CreatedAt:   project.CreatedAt,
+		UpdatedAt:   project.UpdatedAt,
+		DeletedAt:   *project.DeletedAt,
+		Email:       project.Email,
+		Title:       project.Title,
+		Link:        project.Link,
+		Description: project.Description,
+		Content:     project.Content,
+		IsLive:      project.IsLive,
+		User:        ToUserDto(project.User),
+		Tags:        ToTagDtoList(project.Tags),
 	}
 }
 
-func ToProjectDto(projects []Project) []ProjectDto {
+func ToProjectDtoList(projects []Project) []ProjectDto {
 	var projectDtos []ProjectDto
 	for _, project := range projects {
-		projectDtos = append(projectDtos, project.ToDto())
+		projectDtos = append(projectDtos, ToProjectDto(project))
 	}
 	return projectDtos
 }
@@ -151,19 +149,19 @@ type TagDto struct {
 	CategoryId int    `json:"categoryId"`
 }
 
-func (t *Tag) ToDto() TagDto {
+func ToTagDto(tag Tag) TagDto {
 	return TagDto{
-		Id:         t.Id,
-		Name:       t.Name,
-		NameShort:  t.NameShort,
-		CategoryId: t.CategoryId,
+		Id:         tag.Id,
+		Name:       tag.Name,
+		NameShort:  tag.NameShort,
+		CategoryId: tag.CategoryId,
 	}
 }
 
-func ToTagDto(tags []Tag) []TagDto {
+func ToTagDtoList(tags []Tag) []TagDto {
 	var tagDtos []TagDto
 	for _, tag := range tags {
-		tagDtos = append(tagDtos, tag.ToDto())
+		tagDtos = append(tagDtos, ToTagDto(tag))
 	}
 	return tagDtos
 }

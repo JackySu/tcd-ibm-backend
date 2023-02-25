@@ -11,15 +11,15 @@ type User struct {
 }
 
 type UserDto struct {
-	Email    string       `json:"email"`
-	Role     int          `json:"role"`
-	Projects []ProjectDto `json:"projects"`
+	Email    string    `json:"email"`
+	Role     int       `json:"role"`
+	Projects []Project `json:"projects"`
 }
 
 func ToUserDto(user User) UserDto {
 	return UserDto{
-		Email: user.Email,
-		Role:  user.Role,
-		// Projects: ToProjectDto(user.Projects),
+		Email:    user.Email,
+		Role:     user.Role,
+		Projects: user.Projects,
 	}
 }

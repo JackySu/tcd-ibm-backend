@@ -122,24 +122,64 @@ func GetAllCategoriesWithTags(c *gin.Context) {
 		c.AbortWithStatus(404)
 		fmt.Println(err)
 	} else {
-		c.JSON(200, model.ToCategoryDto(categoriesWithTags))
+		c.JSON(200, categoriesWithTags)
 	}
 }
 
-func GetAllProjectsWithTags(c *gin.Context) {
-	var projectsWithTags []model.Project
-	if err := DB.Preload("Tags").Find(&projectsWithTags).Error; err != nil {
+func GetAllProjects(c *gin.Context) {
+	var projects []model.Project
+	if err := DB.Preload("Tags").Preload("Users").Find(&projects).Error; err != nil {
 		c.AbortWithStatus(404)
 		fmt.Println(err)
 	} else {
-		c.JSON(200, model.ToProjectDto(projectsWithTags))
+		c.JSON(200, model.ToProjectDtoList(projects))
+	}
+}
+
+func CreateProject(c *gin.Context) {
+
+	var projectBase model.ProjectBase
+
+	if err := c.ShouldBindJSON(&projectBase); err != nil {
+		c.AbortWithStatusJSON(400, gin.H{"message": err.Error()})
+		return
+	}
+
+	user, _ := c.Get("user")
+	if user == nil {
+		c.AbortWithStatusJSON(400, gin.H{"message": "User not found"})
+		return
+	}
+
+	var tags = make([]model.Tag, len(projectBase.Tags))
+	for i, tagId := range projectBase.Tags {
+		if err := DB.First(&tags[i], tagId).Error; err != nil {
+			c.AbortWithStatusJSON(400, gin.H{"message": fmt.Sprintf("TagId %d not found", tagId)})
+			return
+		}
+	}
+
+	var project = model.Project{
+		Email:       projectBase.Email,
+		Title:       projectBase.Title,
+		Link:        projectBase.Link,
+		Description: projectBase.Description,
+		Content:     projectBase.Content,
+		IsLive:      false,
+		User:        user.(model.User),
+		Tags:        tags,
+	}
+	if err := DB.Create(&project).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	} else {
+		c.JSON(200, project)
 	}
 }
 
 func GetProjectsByTagsInCategory(c *gin.Context) {
 
 	tagIdStr := c.Query("tags")
-
 	tagIdStrSlice := strings.Split(tagIdStr, ",")
 
 	tagIds := make([]int, len(tagIdStrSlice))
@@ -198,14 +238,14 @@ func GetProjectsByTagsInCategory(c *gin.Context) {
 		fmt.Println(err)
 	}
 
-	c.JSON(200, model.ToProjectDto(projectsWithTags))
+	c.JSON(200, projectsWithTags)
 }
 
 func main() {
 
 	DB = database.InitDB()
 
-	// gin.SetMode(gin.ReleaseMode)
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 	r.Use(middleware.CORS())
 
@@ -230,9 +270,9 @@ func main() {
 
 	api.GET("/tags", GetAllCategoriesWithTags)
 
-	api.GET("/projects", GetAllProjectsWithTags)
-
-	api.GET("/projects/query", GetProjectsByTagsInCategory)
+	api.GET("/projects", GetAllProjects)
+	api.GET("/projects/q", GetProjectsByTagsInCategory)
+	api.POST("/projects", middleware.AuthMiddleware(), CreateProject)
 
 	auth := api.Group("/auth")
 	auth.POST("/register", middleware.RegisterHandler)
