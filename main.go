@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"sweng_backend/database"
 	"sweng_backend/middleware"
 	"sweng_backend/model"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/exp/slices"
 	"gorm.io/gorm"
 )
 
@@ -113,11 +116,96 @@ func GetTypes(c *gin.Context) {
 	}
 }
 
+func GetAllCategoriesWithTags(c *gin.Context) {
+	var categoriesWithTags []model.Category
+	if err := DB.Preload("Tags").Find(&categoriesWithTags).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	} else {
+		c.JSON(200, model.ToCategoryDto(categoriesWithTags))
+	}
+}
+
+func GetAllProjectsWithTags(c *gin.Context) {
+	var projectsWithTags []model.Project
+	if err := DB.Preload("Tags").Find(&projectsWithTags).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	} else {
+		c.JSON(200, model.ToProjectDto(projectsWithTags))
+	}
+}
+
+func GetProjectsByTagsInCategory(c *gin.Context) {
+
+	tagIdStr := c.Query("tags")
+
+	tagIdStrSlice := strings.Split(tagIdStr, ",")
+
+	tagIds := make([]int, len(tagIdStrSlice))
+	var err error
+	for i, s := range tagIdStrSlice {
+		tagIds[i], err = strconv.Atoi(s)
+		if err != nil {
+			c.AbortWithStatusJSON(400, gin.H{"message": "Tag id " + s + " must be integer"})
+			return
+		}
+	}
+
+	var tagInstances []model.Tag
+	if err := DB.Model(&model.Tag{}).Where("id IN ?", tagIds).Find(&tagInstances).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	}
+
+	var allTagIds []int
+	for _, tag := range tagInstances {
+		allTagIds = append(allTagIds, tag.Id)
+	}
+
+	for _, tagId := range tagIds {
+		if !slices.Contains(allTagIds, tagId) {
+			c.AbortWithStatusJSON(404, gin.H{"tagId not found": tagId})
+			return
+		}
+	}
+
+	var categoryCount int64
+	DB.Model(&model.Category{}).Count(&categoryCount)
+
+	var tagIdsByCategory = make([][]int, categoryCount)
+	for i := range tagIdsByCategory {
+		for _, tag := range tagInstances {
+			if tag.CategoryId == int(i+1) {
+				tagIdsByCategory[i] = append(tagIdsByCategory[i], tag.Id)
+			}
+		}
+	}
+
+	// if any tag given in category1 and any tag given in category2 and any tag given in category3 ...
+	var conditions []string
+	for i, tagList := range tagIdsByCategory {
+		if len(tagList) > 0 {
+			conditions = append(conditions, fmt.Sprintf("( EXISTS ( SELECT 1 FROM project_tags, tags WHERE projects.id = project_tags.project_id AND tags.Id = project_tags.tag_id AND tags.category_id = %d AND tags.Id IN (%s) ))", i+1, strings.Trim(strings.Join(strings.Fields(fmt.Sprint(tagList)), ","), "[]")))
+		}
+	}
+	// EXISTS ( SELECT 1 ... ) => any_ in SQLAlchemy
+
+	var projectsWithTags []model.Project
+
+	if err := DB.Model(&model.Project{}).Preload("Tags").Where(strings.Join(conditions, " AND ")).Find(&projectsWithTags).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	}
+
+	c.JSON(200, model.ToProjectDto(projectsWithTags))
+}
+
 func main() {
 
 	DB = database.InitDB()
 
-	gin.SetMode(gin.ReleaseMode)
+	// gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 	r.Use(middleware.CORS())
 
@@ -140,11 +228,38 @@ func main() {
 
 	api.GET("/type", GetTypes)
 
+	api.GET("/tags", GetAllCategoriesWithTags)
+
+	api.GET("/projects", GetAllProjectsWithTags)
+
+	api.GET("/projects/query", GetProjectsByTagsInCategory)
+
 	auth := api.Group("/auth")
 	auth.POST("/register", middleware.RegisterHandler)
 	auth.POST("/login", middleware.LoginHandler)
 	auth.POST("/refresh_token", middleware.RefreshHandler)
 	auth.GET("/info", middleware.AuthMiddleware(), middleware.InfoHandler)
+
+	/*
+		var c model.Category
+		var t1, t2 model.Tag
+		t1 = model.Tag{Id: 1, Name: "Tag1", NameShort: "T1"}
+		t2 = model.Tag{Id: 2, Name: "Tag2", NameShort: "T2"}
+		c = model.Category{Id: 1, Name: "Category1", Tags: []model.Tag{t1, t2}}
+		DB.Create(&c)
+	*/
+
+	/*
+		var p model.Project
+		var t1, t2 model.Tag
+		t1 = model.Tag{Id: 1, Name: "Tag1", NameShort: "T1"}
+		t2 = model.Tag{Id: 2, Name: "Tag2", NameShort: "T2"}
+		p = model.Project{Id: 1, Title: "Project1", Link: "SomeLink", Description: "SomeDescription", Content: "Content", Date: time.Now(), IsLive: false, Tags: []model.Tag{t1, t2}}
+		DB.Create(&p)
+	*/
+	/*
+
+	 */
 
 	/*
 		// The 2 snippets below are equivalent
@@ -160,5 +275,13 @@ func main() {
 		fmt.Println(c)
 	*/
 
+	/*
+		var p model.Project
+		var t1, t2 model.Tag
+		t1 = model.Tag{Id: 1, Name: "Tag1", NameShort: "T1", CategoryId: 1}
+		t2 = model.Tag{Id: 21, Name: "Tag21", NameShort: "T21", CategoryId: 2}
+		p = model.Project{Id: 5, Title: "Project5", Link: "SomeLink", Description: "SomeDescription", Content: "Content", Date: time.Now(), IsLive: false, Tags: []model.Tag{t1, t2}}
+		DB.Create(&p)
+	*/
 	r.Run("0.0.0.0:5297")
 }

@@ -7,6 +7,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.3
 	github.com/jinzhu/gorm v1.9.16
 	golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3
+	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2
 	gorm.io/driver/sqlite v1.4.4
 	gorm.io/gorm v1.24.5
 )
