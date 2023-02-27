@@ -14,59 +14,6 @@ we don't want to return the password hash to the client.
 So we create a UserDto struct to transfer the data.
 */
 
-type Announcement struct {
-	Aid              int    `gorm:"primary_key" json:"aid"`
-	Title            string `gorm:"size:255" json:"title"`
-	TitleLink        string `gorm:"size:255" json:"titleLink"`
-	Date             string `gorm:"size:63" json:"date"`
-	AnnouncementType string `gorm:"size:63" json:"announcementType"`
-	Desc             string `gorm:"size:255" json:"desc"`
-}
-
-type Detail struct {
-	PPid        int    `gorm:"primary_key" json:"ppid"`
-	Description string `gorm:"size:255" json:"description"`
-	Url         string `gorm:"size:255" json:"url"`
-	Type        string `gorm:"size:63" json:"type"`
-}
-
-type PA struct {
-	PPid        int    `gorm:"primary_key" json:"ppid"`
-	Heading     string `json:"Heading"`
-	Summary     string `json:"Summary"`
-	Product     string `json:"Product"`
-	Solutions   string `json:"Solutions"`
-	Vertical    string `json:"Vertical"`
-	Image1Url   string `json:"Image1Url"`
-	ProductType string `json:"ProductType"`
-	DetailPage  string `json:"DetailPage"`
-	IsLive      bool   `json:"islive"`
-	IsNew       bool   `json:"isnew"`
-	MetaDesc    string `json:"metaDesc"`
-	MetaKeyword string `json:"metaKeyword"`
-}
-
-type Product struct {
-	Pid   string `gorm:"primary_key" json:"pid"`
-	PName string `gorm:"size:255" json:"pname"`
-	PLink string `json:"plink"`
-}
-
-type Solution struct {
-	Sid   string `gorm:"primary_key" json:"sid"`
-	SName string `gorm:"size:255" json:"sname"`
-}
-
-type Vertical struct {
-	Vid   string `gorm:"primary_key" json:"vid"`
-	VName string `gorm:"size:255" json:"vname"`
-}
-
-type Type struct {
-	Tid      string `gorm:"primary_key" json:"tid"`
-	TypeName string `gorm:"size:255" json:"typename"`
-}
-
 type Category struct {
 	Id   int    `gorm:"primary_key" json:"id"`
 	Name string `json:"name"`
@@ -74,7 +21,6 @@ type Category struct {
 }
 
 type ProjectBase struct {
-	Email       string `json:"email"` // Email of the user that created the project
 	Title       string `json:"title"`
 	Link        string `json:"link"`
 	Description string `json:"description"`
@@ -90,23 +36,28 @@ type Project struct {
 	Description string `json:"description"`
 	Content     string `json:"content"`
 	IsLive      bool   `json:"is_live"`
+	UserId      uint   `json:"user_id"`
 	User        User   `json:"user"` // User that created the project
-	Tags        []Tag  `gorm:"many2many:project_tags" json:"tags"`
+	Tags        []Tag  `gorm:"many2many:project_tags"`
 }
 
 type ProjectDto struct {
-	ID          int       `json:"id"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-	DeletedAt   time.Time `json:"deletedAt"`
-	Email       string    `json:"email"`
-	Title       string    `json:"title"`
-	Link        string    `json:"link"`
-	Description string    `json:"description"`
-	Content     string    `json:"content"`
-	IsLive      bool      `json:"is_live"`
-	User        UserDto   `json:"user"`
-	Tags        []TagDto  `json:"tags"`
+	ID          int        `json:"id"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	DeletedAt   *time.Time `json:"deletedAt"`
+	Email       string     `json:"email"`
+	Title       string     `json:"title"`
+	Link        string     `json:"link"`
+	Description string     `json:"description"`
+	IsLive      bool       `json:"is_live"`
+	User        UserDto    `json:"user"`
+	Tags        []TagDto   `json:"tags"`
+}
+
+type ProjectFullDto struct {
+	ProjectDto
+	Content string `json:"content"`
 }
 
 func ToProjectDto(project Project) ProjectDto {
@@ -114,15 +65,21 @@ func ToProjectDto(project Project) ProjectDto {
 		ID:          int(project.ID),
 		CreatedAt:   project.CreatedAt,
 		UpdatedAt:   project.UpdatedAt,
-		DeletedAt:   *project.DeletedAt,
+		DeletedAt:   project.DeletedAt,
 		Email:       project.Email,
 		Title:       project.Title,
 		Link:        project.Link,
 		Description: project.Description,
-		Content:     project.Content,
 		IsLive:      project.IsLive,
 		User:        ToUserDto(project.User),
 		Tags:        ToTagDtoList(project.Tags),
+	}
+}
+
+func ToProjectFullDto(project Project) ProjectFullDto {
+	return ProjectFullDto{
+		ProjectDto: ToProjectDto(project),
+		Content:    project.Content,
 	}
 }
 
