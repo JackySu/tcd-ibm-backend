@@ -15,6 +15,9 @@ import (
 )
 
 var DB *gorm.DB
+var DEFAULT_PER_PAGE int = 30
+var MAX_PER_PAGE int = 50
+var DEFAULT_PAGE int = 1
 
 func GetAllCategoriesWithTags(c *gin.Context) {
 	var categoriesWithTags []model.Category
@@ -23,16 +26,6 @@ func GetAllCategoriesWithTags(c *gin.Context) {
 		fmt.Println(err)
 	} else {
 		c.JSON(200, model.ToCategoryDtoList(categoriesWithTags))
-	}
-}
-
-func GetAllProjects(c *gin.Context) {
-	var projects []model.Project
-	if err := DB.Preload("Tags").Preload("Users").Find(&projects).Error; err != nil {
-		c.AbortWithStatus(404)
-		fmt.Println(err)
-	} else {
-		c.JSON(200, model.ToProjectDtoList(projects))
 	}
 }
 
@@ -90,7 +83,42 @@ func GetFullProjectById(c *gin.Context) {
 
 func GetProjectsByTagsInCategory(c *gin.Context) {
 
-	tagIdStr := c.Query("tags")
+	tagIdStr := c.DefaultQuery("tags", "")
+	keyword := c.DefaultQuery("keyword", "")
+	perPageStr := c.DefaultQuery("per_page", "")
+	pageStr := c.DefaultQuery("page", "")
+
+	var per_page, page int
+	if perPageStr == "" {
+		per_page = DEFAULT_PER_PAGE
+	} else {
+		per_page, _ = strconv.Atoi(perPageStr)
+		if per_page > MAX_PER_PAGE {
+			per_page = MAX_PER_PAGE
+		} else if per_page < 1 {
+			per_page = 1
+		}
+	}
+	if pageStr == "" {
+		page = DEFAULT_PAGE
+	} else {
+		page, _ = strconv.Atoi(pageStr)
+		if page < 1 {
+			page = 1
+		}
+	}
+
+	if tagIdStr == "" {
+		var projects []model.Project
+
+		if err := DB.Model(&model.Project{}).Preload("User").Preload("Tags").Offset((page - 1) * per_page).Limit(per_page).Find(&projects).Error; err != nil {
+			c.AbortWithStatus(404)
+			fmt.Println(err)
+		}
+
+		c.JSON(200, model.ToProjectDtoList(projects))
+	}
+
 	tagIdStrSlice := strings.Split(tagIdStr, ",")
 
 	tagIds := make([]int, len(tagIdStrSlice))
@@ -142,14 +170,14 @@ func GetProjectsByTagsInCategory(c *gin.Context) {
 	}
 	// EXISTS ( SELECT 1 ... ) => any_ in SQLAlchemy
 
-	var projectsWithTags []model.Project
+	var projects []model.Project
 
-	if err := DB.Model(&model.Project{}).Preload("Tags").Where(strings.Join(conditions, " AND ")).Find(&projectsWithTags).Error; err != nil {
+	if err := DB.Model(&model.Project{}).Preload("User").Preload("Tags").Where(strings.Join(conditions, " AND ")).Where("title like ?", "%"+keyword+"%").Offset((page - 1) * per_page).Limit(per_page).Find(&projects).Error; err != nil {
 		c.AbortWithStatus(404)
 		fmt.Println(err)
 	}
 
-	c.JSON(200, projectsWithTags)
+	c.JSON(200, model.ToProjectDtoList(projects))
 }
 
 func GetUserProjects(c *gin.Context) {
@@ -182,14 +210,16 @@ func main() {
 
 	api.GET("/tags", GetAllCategoriesWithTags)
 
-	api.GET("/projects", GetAllProjects)
-	api.GET("/projects/q", GetProjectsByTagsInCategory)
+	api.GET("/projects", GetProjectsByTagsInCategory)
 	api.GET("/project/:id", GetFullProjectById)
 	api.POST("/project", middleware.AuthMiddleware(), CreateProject)
 
 	auth := api.Group("/auth")
 	auth.POST("/register", middleware.RegisterHandler)
-	auth.POST("/login", middleware.LoginHandler)
+	auth.DELETE("/delete/:id", middleware.AuthMiddleware(), middleware.DeleteHandler)
+	auth.PUT("/update/:id", middleware.AuthMiddleware(), middleware.UpdateHandler)
+	auth.POST("/token", middleware.LoginHandler)
+
 	auth.POST("/refresh_token", middleware.RefreshHandler)
 	auth.GET("/info", middleware.AuthMiddleware(), middleware.InfoHandler)
 

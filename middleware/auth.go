@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sweng_backend/database"
 	"sweng_backend/model"
@@ -20,6 +22,10 @@ var jwtKey = []byte("78ede33d04003e331827f8a6658fc44c378a55f95907c73941f842da71c
 type Claims struct {
 	UserId uint
 	jwt.StandardClaims
+}
+
+func IsAdmin(u model.User) bool {
+	return u.Role > 0
 }
 
 func HashPassword(password string) (string, error) {
@@ -73,6 +79,56 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"status": "success", "token": token})
+}
+
+func DeleteHandler(c *gin.Context) {
+	id := c.Params.ByName("id")
+	db := database.GetDB()
+	var user model.User
+	if err = db.Where("id = ?", id).First(&user).Error; err != nil {
+		c.JSON(400, gin.H{"status": "id " + id + " does not exist"})
+		return
+	}
+	db.Delete(&user)
+	c.JSON(200, gin.H{"status": "success"})
+}
+
+func UpdateHandler(c *gin.Context) {
+	var updatedUser model.UpdateUser
+	if err := c.ShouldBindJSON(&updatedUser); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var idStr = c.Params.ByName("id")
+	id, err := strconv.ParseUint(idStr, 0, strconv.IntSize)
+	if err != nil {
+		c.JSON(400, gin.H{"status": "id is not a number"})
+		return
+	}
+	ctx, _ := c.Get("user")
+	currentUser := ctx.(model.User)
+	if uint(id) != currentUser.ID && !IsAdmin(currentUser) {
+		c.JSON(400, gin.H{"status": "cannot update other user's info without admin permission"})
+		return
+	}
+
+	db := database.GetDB()
+	var userToUpdate model.User
+	if err = db.Where("id = ?", id).First(&userToUpdate).Error; err != nil {
+		c.JSON(400, gin.H{"status": fmt.Sprintf("user id %d does not exist", id)})
+		return
+	}
+	email := updatedUser.Email
+	password := updatedUser.Password
+	if email != nil {
+		userToUpdate.Email = *email
+	}
+	if password != nil {
+		hashedPassword, _ := HashPassword(*password)
+		userToUpdate.Password = string(hashedPassword)
+	}
+	db.Save(&userToUpdate)
+	c.JSON(200, gin.H{"status": "success"})
 }
 
 func RefreshHandler(c *gin.Context) {

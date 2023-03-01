@@ -16,6 +16,11 @@ type UserDto struct {
 	// Projects []Project `json:"projects"`
 }
 
+type UpdateUser struct {
+	Email    *string `json:"email,omitempty"`
+	Password *string `json:"password,omitempty"`
+}
+
 func ToUserDto(user User) UserDto {
 	return UserDto{
 		Email: user.Email,
