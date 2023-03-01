@@ -50,6 +50,15 @@ type ProjectBase struct {
 	Tags        []int  `json:"tags"`
 }
 
+type UpdateProject struct {
+	Title       *string `json:"title,omitempty"`
+	Link        *string `json:"link,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Content     *string `json:"content,omitempty"`
+	Tags        *[]int  `json:"tags,omitempty"`
+	IsLive      *bool   `json:"is_live,omitempty"`
+}
+
 type Project struct {
 	gorm.Model
 	Email       string `json:"email"`

@@ -20,7 +20,9 @@ var err error
 var jwtKey = []byte("78ede33d04003e331827f8a6658fc44c378a55f95907c73941f842da71ca7731")
 
 type Claims struct {
-	UserId uint
+	UserId          uint
+	PasswordVersion int
+	Role            int
 	jwt.StandardClaims
 }
 
@@ -53,7 +55,12 @@ func RegisterHandler(c *gin.Context) {
 	hashedPassword, _ := HashPassword(password)
 	user := model.User{Email: email, Password: string(hashedPassword)}
 	db.Create(&user)
-	c.JSON(200, gin.H{"status": "success"})
+	token, err := ReleaseToken(user)
+	if err != nil {
+		c.JSON(400, gin.H{"status": "token release failed"})
+		return
+	}
+	c.JSON(200, gin.H{"status": "success", "token": token})
 }
 
 func LoginHandler(c *gin.Context) {
@@ -94,11 +101,6 @@ func DeleteHandler(c *gin.Context) {
 }
 
 func UpdateHandler(c *gin.Context) {
-	var updatedUser model.UpdateUser
-	if err := c.ShouldBindJSON(&updatedUser); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
 	var idStr = c.Params.ByName("id")
 	id, err := strconv.ParseUint(idStr, 0, strconv.IntSize)
 	if err != nil {
@@ -118,16 +120,21 @@ func UpdateHandler(c *gin.Context) {
 		c.JSON(400, gin.H{"status": fmt.Sprintf("user id %d does not exist", id)})
 		return
 	}
-	email := updatedUser.Email
-	password := updatedUser.Password
-	if email != nil {
-		userToUpdate.Email = *email
+
+	var updateData model.UpdateUser
+	if err := c.ShouldBindJSON(&updateData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
-	if password != nil {
-		hashedPassword, _ := HashPassword(*password)
+	if updateData.Password != nil {
+		hashedPassword, _ := HashPassword(*updateData.Password)
 		userToUpdate.Password = string(hashedPassword)
 	}
-	db.Save(&userToUpdate)
+
+	if err := db.Model(&userToUpdate).Updates(updateData).Error; err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(200, gin.H{"status": "success"})
 }
 
@@ -165,9 +172,11 @@ func InfoHandler(ctx *gin.Context) {
 }
 
 func ReleaseToken(user model.User) (string, error) {
-	expirationTime := time.Now().Add(7 * 24 * time.Hour)
+	expirationTime := time.Now().Add(6 * time.Hour)
 	claims := &Claims{
-		UserId: user.ID,
+		UserId:          user.ID,
+		PasswordVersion: user.PasswordVersion,
+		Role:            user.Role,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
 			IssuedAt:  time.Now().Unix(),
@@ -227,6 +236,8 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		//token通过验证, 获取claims中的UserID
 		userId := claims.UserId
+		passwordVersion := claims.PasswordVersion
+		role := claims.Role
 		DB := database.GetDB()
 		var user model.User
 		DB.First(&user, userId)
@@ -236,6 +247,24 @@ func AuthMiddleware() gin.HandlerFunc {
 			ctx.JSON(http.StatusUnauthorized, gin.H{
 				"code": 401,
 				"msg":  "unauthorized",
+			})
+			ctx.Abort()
+			return
+		}
+
+		if user.PasswordVersion != passwordVersion {
+			ctx.JSON(http.StatusUnauthorized, gin.H{
+				"code": 401,
+				"msg":  "password has been updated, please login again",
+			})
+			ctx.Abort()
+			return
+		}
+
+		if user.Role != role {
+			ctx.JSON(http.StatusUnauthorized, gin.H{
+				"code": 401,
+				"msg":  "role has been updated, please login again",
 			})
 			ctx.Abort()
 			return

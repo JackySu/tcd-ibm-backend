@@ -198,6 +198,95 @@ func GetUserProjects(c *gin.Context) {
 
 }
 
+func GetProjectById(c *gin.Context) {
+
+	user, _ := c.Get("user")
+	if user == nil {
+		c.AbortWithStatusJSON(400, gin.H{"message": "User not found"})
+		return
+	}
+	id := c.Param("id")
+	var project model.Project
+	if err := DB.Preload("Tags").Preload("User").Where("user_id = ?", user.(model.User).ID).First(&project, id).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	} else {
+		c.JSON(200, model.ToProjectDto(project))
+	}
+
+}
+
+func UpdateProject(c *gin.Context) {
+
+	user, _ := c.Get("user")
+	if user == nil {
+		c.AbortWithStatusJSON(400, gin.H{"message": "User not found"})
+		return
+	}
+	id := c.Param("id")
+	var updateData model.UpdateProject
+	var projectToUpdate model.Project
+	if err := DB.Preload("Tags").Preload("User").First(&projectToUpdate, id).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	}
+
+	if err := c.ShouldBindJSON(&updateData); err != nil {
+		c.AbortWithStatusJSON(400, gin.H{"message": "Invalid request"})
+		return
+	}
+
+	if updateData.IsLive != nil && !middleware.IsAdmin(user.(model.User)) {
+		c.AbortWithStatusJSON(400, gin.H{"message": "Only admin can change isLive"})
+		return
+	}
+
+	if updateData.Tags != nil {
+		var tagInstances = make([]model.Tag, len(*updateData.Tags))
+
+		for i, tagId := range *updateData.Tags {
+			var tag model.Tag
+			if err := DB.First(tag, tagId).Error; err != nil {
+				c.AbortWithStatusJSON(400, gin.H{"error": fmt.Sprintf("Tag %d not found", tagId)})
+				return
+			}
+			tagInstances[i] = tag
+		}
+		projectToUpdate.Tags = tagInstances
+		DB.Save(&projectToUpdate)
+		updateData.Tags = nil
+	}
+
+	if err := DB.Model(&projectToUpdate).Updates(updateData).Error; err != nil {
+		c.AbortWithStatusJSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, model.ToProjectDto(projectToUpdate))
+}
+
+func DeleteProject(c *gin.Context) {
+
+	user, _ := c.Get("user")
+	if user == nil {
+		c.AbortWithStatusJSON(400, gin.H{"message": "User not found"})
+		return
+	}
+	id := c.Param("id")
+	var projectToDelete model.Project
+	if err := DB.Preload("Tags").Preload("User").First(&projectToDelete, id).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	}
+
+	if err := DB.Delete(&projectToDelete).Error; err != nil {
+		c.AbortWithStatusJSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"status": "success"})
+}
+
 func main() {
 
 	DB = database.InitDB()
@@ -212,10 +301,9 @@ func main() {
 
 	api.GET("/projects", GetProjectsByTagsInCategory)
 	api.GET("/project/:id", GetFullProjectById)
-	api.POST("/project", middleware.AuthMiddleware(), CreateProject)
 
-	auth := api.Group("/auth")
-	auth.POST("/register", middleware.RegisterHandler)
+	auth := api.Group("/user")
+	auth.POST("/signup", middleware.RegisterHandler)
 	auth.DELETE("/delete/:id", middleware.AuthMiddleware(), middleware.DeleteHandler)
 	auth.PUT("/update/:id", middleware.AuthMiddleware(), middleware.UpdateHandler)
 	auth.POST("/token", middleware.LoginHandler)
@@ -223,6 +311,12 @@ func main() {
 	auth.POST("/refresh_token", middleware.RefreshHandler)
 	auth.GET("/info", middleware.AuthMiddleware(), middleware.InfoHandler)
 
+	auth.POST("/project", middleware.AuthMiddleware(), CreateProject)
+	auth.GET("/project/:id", middleware.AuthMiddleware(), GetProjectById)
+	auth.PUT("/project/:id", middleware.AuthMiddleware(), UpdateProject)
+	auth.DELETE("/project/:id", middleware.AuthMiddleware(), DeleteProject)
+
+	auth.GET("/projects", middleware.AuthMiddleware(), GetUserProjects)
 	/*
 		var c model.Category
 		var t1, t2 model.Tag
