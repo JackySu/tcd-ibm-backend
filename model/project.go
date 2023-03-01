@@ -20,6 +20,28 @@ type Category struct {
 	Tags []Tag  `json:"tags"`
 }
 
+type CategoryDto struct {
+	Id   int      `json:"id"`
+	Name string   `json:"name"`
+	Tags []TagDto `json:"tags"`
+}
+
+func ToCategoryDto(category Category) CategoryDto {
+	return CategoryDto{
+		Id:   category.Id,
+		Name: category.Name,
+		Tags: ToTagDtoList(category.Tags),
+	}
+}
+
+func ToCategoryDtoList(categories []Category) []CategoryDto {
+	var categoryDtos []CategoryDto
+	for _, category := range categories {
+		categoryDtos = append(categoryDtos, ToCategoryDto(category))
+	}
+	return categoryDtos
+}
+
 type ProjectBase struct {
 	Title       string `json:"title"`
 	Link        string `json:"link"`
@@ -36,7 +58,7 @@ type Project struct {
 	Description string `json:"description"`
 	Content     string `json:"content"`
 	IsLive      bool   `json:"is_live"`
-	UserId      uint   `json:"user_id"`
+	UserID      uint   `json:"user_id"`
 	User        User   `json:"user"` // User that created the project
 	Tags        []Tag  `gorm:"many2many:project_tags"`
 }

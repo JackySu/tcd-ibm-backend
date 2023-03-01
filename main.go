@@ -22,7 +22,7 @@ func GetAllCategoriesWithTags(c *gin.Context) {
 		c.AbortWithStatus(404)
 		fmt.Println(err)
 	} else {
-		c.JSON(200, categoriesWithTags)
+		c.JSON(200, model.ToCategoryDtoList(categoriesWithTags))
 	}
 }
 
@@ -74,6 +74,17 @@ func CreateProject(c *gin.Context) {
 		fmt.Println(err)
 	} else {
 		c.JSON(200, model.ToProjectDto(project))
+	}
+}
+
+func GetFullProjectById(c *gin.Context) {
+	id := c.Params.ByName("id")
+	var project model.Project
+	if err := DB.Preload("Tags").Preload("User").First(&project, id).Error; err != nil {
+		c.AbortWithStatus(404)
+		fmt.Println(err)
+	} else {
+		c.JSON(200, model.ToProjectFullDto(project))
 	}
 }
 
@@ -150,7 +161,7 @@ func GetUserProjects(c *gin.Context) {
 	}
 
 	var projects []model.Project
-	if err := DB.Preload("Tags").Preload("Users").Where("user_id = ?", user.(model.User).ID).Find(&projects).Error; err != nil {
+	if err := DB.Preload("Tags").Where("user_id = ?", user.(model.User).ID).Find(&projects).Error; err != nil {
 		c.AbortWithStatus(404)
 		fmt.Println(err)
 	} else {
@@ -158,7 +169,6 @@ func GetUserProjects(c *gin.Context) {
 	}
 
 }
-
 
 func main() {
 
@@ -174,6 +184,7 @@ func main() {
 
 	api.GET("/projects", GetAllProjects)
 	api.GET("/projects/q", GetProjectsByTagsInCategory)
+	api.GET("/project/:id", GetFullProjectById)
 	api.POST("/project", middleware.AuthMiddleware(), CreateProject)
 
 	auth := api.Group("/auth")
