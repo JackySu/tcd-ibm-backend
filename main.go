@@ -236,32 +236,31 @@ func UpdateProject(c *gin.Context) {
 		return
 	}
 
-	if updateData.IsLive != nil && !middleware.IsAdmin(user.(model.User)) {
-		c.AbortWithStatusJSON(400, gin.H{"message": "Only admin can change isLive"})
-		return
+	if updateData.IsLive != nil {
+		if !middleware.IsAdmin(user.(model.User)) {
+			c.AbortWithStatusJSON(400, gin.H{"message": "Only admin can change isLive"})
+			return
+		}
+		projectToUpdate.IsLive = *updateData.IsLive
 	}
 
 	if updateData.Tags != nil {
 		var tagInstances = make([]model.Tag, len(*updateData.Tags))
-
 		for i, tagId := range *updateData.Tags {
-			var tag model.Tag
-			if err := DB.First(tag, tagId).Error; err != nil {
-				c.AbortWithStatusJSON(400, gin.H{"error": fmt.Sprintf("Tag %d not found", tagId)})
+			if err := DB.First(&tagInstances[i], tagId).Error; err != nil {
+				c.AbortWithStatusJSON(400, gin.H{"message": fmt.Sprintf("TagId %d not found", tagId)})
 				return
 			}
-			tagInstances[i] = tag
 		}
 		projectToUpdate.Tags = tagInstances
-		DB.Save(&projectToUpdate)
-		updateData.Tags = nil
 	}
 
-	if err := DB.Model(&projectToUpdate).Updates(updateData).Error; err != nil {
+	// []int is not serializable to JSON, convert other key-value pairs to []interface{}
+	if err := DB.Model(&projectToUpdate).Omit("tags").Updates(map[string]interface{}{"Title": updateData.Title, "Description": updateData.Description, "Link": updateData.Link, "Content": updateData.Content}).Error; err != nil {
 		c.AbortWithStatusJSON(400, gin.H{"error": err.Error()})
 		return
 	}
-
+	DB.Save(&projectToUpdate)
 	c.JSON(200, model.ToProjectDto(projectToUpdate))
 }
 

@@ -126,15 +126,25 @@ func UpdateHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	if updateData.Email != nil {
+		userToUpdate.Email = *updateData.Email
+	}
+
 	if updateData.Password != nil {
 		hashedPassword, _ := HashPassword(*updateData.Password)
 		userToUpdate.Password = string(hashedPassword)
 	}
 
-	if err := db.Model(&userToUpdate).Updates(updateData).Error; err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
+	if updateData.Role != nil {
+		if !IsAdmin(currentUser) {
+			c.JSON(400, gin.H{"status": "cannot update role without admin permission"})
+			return
+		}
+		userToUpdate.Role = *updateData.Role
 	}
+
+	db.Save(&userToUpdate)
 	c.JSON(200, gin.H{"status": "success"})
 }
 

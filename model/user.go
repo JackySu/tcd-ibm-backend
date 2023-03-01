@@ -20,6 +20,7 @@ type UserDto struct {
 type UpdateUser struct {
 	Email    *string `json:"email,omitempty"`
 	Password *string `json:"password,omitempty"`
+	Role     *int    `json:"role,omitempty"`
 }
 
 func ToUserDto(user User) UserDto {
